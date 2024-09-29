@@ -20,13 +20,17 @@
 
 
 
+![MVVM](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm.png)
+
+
+
 ## 2. MVVM 中的数据流
 
 用户与视图交互。这种交互可以是任何内容，例如单击按钮或在文本字段中输入一些文本，甚至可以是网络调用请求。视图将此用户交互传递给 viewModel，viewModel 使用所有必要的更改更新模型。
 
 一旦模型更新，模型就会通知视图模型发生了变化。由于视图和视图模型是强绑定的，因此视图模型中的任何变化都会反映在视图中。
 
-![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/SwiftUI-mvvm-architecture.jpg)
+![MVVM Data](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_%20data.jpg)
 
 在 SwiftUI 中，ViewModel 通常是一个符合`ObservableObject`协议的类，允许它将更改发布到 View。View 使用`@StateObject`或`@ObservedObject`包装器来观察 ViewModel 并相应地更新 UI。
 
@@ -118,7 +122,7 @@ struct TodoItemView: View {
 
 
 
-![]()
+![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_TodoList_1.gif)
 
 在这种方法中，直接`TodoListView`管理`items`数组。用户交互（例如切换完成或添加新项目）涉及在视图本身内更新数组。这可能会导致诸如紧密耦合、难以阅读的代码和难以测试等问题。虽然这种方法适用于像这样的简单应用，但 MVVM 为更大或更复杂的应用提供了更清晰的关注点分离和更好的可维护性。
 
@@ -359,3 +363,177 @@ struct CheckBox: View {
 ```
 
 注意`.environmentObject(viewModel)`在 NavigationView 中如何使用。这会将`viewModel`实例沿视图层次结构向下广播，使其可供嵌套视图访问，例如`CheckBox`。
+
+![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_TodoList_2.gif)
+
+**[点击此处下载完整项目](https://github.com/SwiftAnytime/MVVMBootcamp)**
+
+**关于 MVVM 的要点：**
+
+- 管理`TodoViewModel`数据（`items`）和逻辑（添加和切换项目）。
+- 定义`TodoListView`UI 结构并绑定到视图模型的数据。
+- `TodoItemView`并呈现`CheckBox`数据并与视图模型交互以执行操作。
+
+
+
+# 使用 MVVM 进行依赖注入
+
+
+
+依赖注入 (DI) 是一种向视图提供其运行所需对象的方法，而不是让视图自己创建它们。通过注入依赖项，您可以在单元测试期间提供模拟对象，从而让您隔离视图的行为。
+
+假设我们的 To-Do 应用针对每个任务都有一个“详细信息”屏幕。在这种情况下，我们可能需要一个新的 viewModel，以作为`item`输入并针对该项目执行必要的操作。
+
+下面介绍了如何使用依赖注入为每个项目创建详细信息屏幕：
+
+1. **定义 DetailViewModel：**
+
+```swift
+class DetailViewModel: ObservableObject {
+    @Published var item: TodoItem
+    @Published var title: String
+
+    init(item: TodoItem) {
+        self.item = item
+        title = item.title
+    }
+
+    func toggleItem(item: TodoItem) {
+        self.item.isChecked.toggle()
+    }
+
+    func updateItem() {
+        // Update logic for the item based on title and isChecked properties
+    }
+}
+```
+
+它`DetailViewModel`管理特定 的详细信息`TodoItem`。它在初始化期间将项目作为输入，并将其属性公开为`@Published`双向数据绑定。
+
+2. **创建 DetailView：**
+
+```swift
+struct DetailView: View {
+    @StateObject var viewModel: DetailViewModel
+
+    var body: some View {
+        VStack {
+            HStack {
+                TextField("Title", text: $viewModel.title)
+                    .foregroundColor(viewModel.item.isChecked ? .gray : .black)
+                Spacer()
+                Image(systemName: viewModel.item.isChecked ? "checkmark.circle" : "circle")
+                    .onTapGesture {
+                        viewModel.toggleItem(item: viewModel.item)
+                    }
+            }
+            Button("Save") {
+                viewModel.updateItem()
+            }
+        }
+        .padding()
+        .navigationTitle("Details")
+    }
+}
+```
+
+显示`DetailView`项目详细信息并允许编辑。它使用`@StateObject`属性包装器绑定到 DetailViewModel。单击“保存”会触发`updateItem`视图模型中的函数，该函数可以更新底层数据源（此处未显示）。
+
+3. **注入依赖**
+
+现在让我们通过将传递给初始化程序并使用它来创建来将依赖项（`TodoItem`）注入到中。`DetailView` `TodoItem` `DetailViewModel`
+
+```swift
+extension DetailView {
+    init(item: TodoItem) {
+        _viewModel = StateObject(wrappedValue: DetailViewModel(item: item))
+    }
+}
+
+struct DetailView: View {
+    @StateObject var viewModel: DetailViewModel
+
+    var body: some View {
+        VStack {
+            HStack {
+                TextField("Title", text: $viewModel.title)
+                    .foregroundColor(viewModel.item.isChecked ? .gray : .black)
+                Spacer()
+                Image(systemName: viewModel.item.isChecked ? "checkmark.circle" : "circle")
+                    .onTapGesture {
+                        viewModel.toggleItem(item: viewModel.item)
+                    }
+            }
+            Button("Save") {
+                viewModel.updateItem()
+            }
+        }
+        .padding()
+        .navigationTitle("Details")
+    }
+}
+```
+
+的扩展`DetailView `定义了一个新的初始化程序，该初始化程序以`TodoItem`作为输入。此初始化程序负责创建依赖项，即`DetailViewModel`实例。`DetailView`不需要知道如何创建`DetailViewModel`本身；它只需要它提供的功能。
+
+现在我们可以`DetailView`在视图中使用了`TodoListView`。
+
+```swift
+struct TodoListView: View {
+    @StateObject private var viewModel = TodoViewModel()
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(viewModel.items) { item in
+                    NavigationLink(destination: DetailView(item: item)) {
+                        TodoItemView(item: item)
+                    }
+                }
+            }
+            .navigationTitle("To-Do List")
+            .toolbar { ... }
+            .environmentObject(viewModel)
+        }
+    }
+}
+```
+
+单击`TodoItemView`现在导航到`DetailView`，在初始化期间将当前项传递给`DetailViewModel`。这有效地注入了依赖项。
+
+![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_TodoList_3.gif)
+
+你可能已经注意到，该`toggleItem()`函数在两种情况下都存在`TodoViewModel`，`DetailViewModel`尽管其实现在两种情况下有所不同。这时你可能需要协议。
+
+通过组合这些部分，您将获得一个简单的待办事项列表应用，该应用展示了 MVVM 中的关注点分离。View 仅显示数据并处理用户交互，而 ViewModel 则管理底层数据和逻辑。这种分离使代码更简洁、更易于维护且更易于测试。
+
+[点击此处下载完整项目](https://github.com/SwiftAnytime/MVVMBootcamp)
+
+这是实现 MVVM 的基本示例。你可以通过以下方式进一步增强它：
+
+- 在视图模型中添加错误处理。
+- 使用 ViewModel 进行路由和导航。
+- 将网络调用分离到单独的服务层。
+- 单独添加视图模型和视图的单元测试。
+- 使用 UserDefaults、CoreData 或数据库实现数据持久性。
+- 实现依赖注入：如何将 ViewModel 与具体数据源分离。
+
+## 文件夹结构
+
+现在让我们看看如何建立文件夹结构。
+
+![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_TodoList_4.jpg)
+
+![](https://github.com/CoderLGL/Learning/raw/main/iOS/SwiftUI/Resources/swiftUI_mvvm_TodoList_5.jpg)
+
+此结构将与应用程序特定功能相关的代码分组到文件夹中。每个功能文件夹可能包含模型、视图和 ViewModel 的子文件夹。每个功能可能有多个模型、视图和 ViewModel。
+
+ 
+
+## MVVM 是 SwiftUI 中的反模式吗？
+
+MVVM 和 SwiftUI 完美地互补，因为它们都注重状态管理。MVVM 专注于模型中的单一事实来源，这与 SwiftUI 基于状态的声明式 UI 相一致。ViewModel 和 View 之间数据流的可预测性以及两种方法的模块化简化了 UI 更新的推理并增强了可测试性。
+
+然而，苹果开发者社区内部有一个强烈的论点，即 MVVM 对于 SwiftUI 来说是不必要的。相反，应用程序应该主要通过视图直接与数据模型交互来构建。对于数据和逻辑有限的非常简单的应用程序，MVVM 可能会带来不必要的复杂性。关注点分离可能不那么有价值，而 ViewModel 的样板代码可能会抵消其好处。此外，SwiftUI 的内置功能（如绑定）在某些情况下可能会使 ViewModel 变得多余。如果实施不当，MVVM 可能会导致更复杂的数据流，并可能造成混乱。
+
+总体而言，MVVM 是一种用于构建可维护且灵活的 UI 的强大架构，但它并不是一刀切的解决方案。最终，是否将 MVVM 与 SwiftUI 结合使用取决于项目的具体需求。请考虑应用的复杂性、团队的经验以及简单性和可维护性之间的权衡。
